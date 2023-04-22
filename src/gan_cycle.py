@@ -22,8 +22,8 @@ from statistics import mean
 from tqdm import tqdm
 # from infer import evaluate, generate
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 
 cuda = True if torch.cuda.is_available() else False
 # Tensor type
@@ -89,7 +89,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_D = torch.optim.Adam(d.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 optimizer_G = torch.optim.Adam(d.parameters(), lr=opt.lr, betas=(0.5, 0.999))
 
-# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [30,60,90,120,182,200,210,220,230], 0.1)
+# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [120,130,140], 0.1)
 
 print('---------------------------------------- step 5/5 : training... ----------------------------------------------------')
 
@@ -166,8 +166,8 @@ def train(epoch):
             # loss_region = criterion_cont(masked_lf_scene, gts) + 1 * criterion_fft(masked_lf_scene, gts)
             
             # loss =  loss_cont + opt.lambda_fft * loss_fft +   * loss_g
-            loss_per = criterion_per(preds,imgs)
-            loss =  loss_cont + opt.lambda_fft * loss_fft + opt.lambda_gan *  loss_g + opt.lambda_region * loss_region + loss_per
+            # loss_per = criterion_per(preds,imgs)
+            loss =  loss_cont + opt.lambda_fft * loss_fft + opt.lambda_gan *  loss_g + opt.lambda_region * loss_region 
             
             loss.backward()
             optimizer.step()
@@ -390,18 +390,18 @@ def main():
     
     start_epoch = 1
     if opt.resume:
-        state = torch.load(models_dir + '/epoch_0180.pth')
-        model.load_state_dict(state)
+        state = torch.load(models_dir + '/epoch_0390.pth')
+        model.load_state_dict(state['model'])
         # optimizer.load_state_dict(state['optimizer'])
         # scheduler.load_state_dict(state['scheduler'])
-        start_epoch = 180 + 1
+        start_epoch = state['epoch'] + 1
         print('Resume model from epoch %d' % (start_epoch))
         
-        state_d = torch.load(models_dir + '/d_epoch_0138.pth')
-        d.load_state_dict(state_d)
+        state_d = torch.load(models_dir + '/d_epoch_0390.pth')
+        d.load_state_dict(state_d['d'])
         # optimizer_D.load_state_dict(state_d['optimizer_d'])
         # scheduler.load_state_dict(state_d['scheduler'])
-        start_epoch = 180 + 1
+        start_epoch = state['epoch'] + 1
         print('Resume d from epoch %d' % (start_epoch))
         
         # state_g = torch.load(models_dir + '/latest_g.pth')

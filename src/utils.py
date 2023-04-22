@@ -39,13 +39,15 @@ def prepare_dir(results_dir, experiment, delete=True):
     log_dir = os.path.join(results_dir, experiment, 'log')
     train_images_dir = os.path.join(results_dir, experiment, 'images', 'train')
     val_images_dir = os.path.join(results_dir, experiment, 'images', 'val')
+    test_images_dir = os.path.join(results_dir, experiment, 'images', 'test')
     
     clean_dir(models_dir, delete=delete)
     clean_dir(log_dir, delete=delete)
     clean_dir(train_images_dir, delete=delete)
     clean_dir(val_images_dir, delete=delete)
+    clean_dir(test_images_dir, delete=delete)
     
-    return models_dir, log_dir, train_images_dir, val_images_dir
+    return models_dir, log_dir, train_images_dir, val_images_dir, test_images_dir
 
 def clean_dir(path, delete=False, contain=False):
     '''
