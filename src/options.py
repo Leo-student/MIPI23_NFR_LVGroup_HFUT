@@ -35,8 +35,8 @@ class TrainOptions():
         self.parser.add_argument("--val_gap", type=int, default=2, help="the gap between two validations, also the gap between two saving operation, in epoch")
         self.parser.add_argument("--lambda_fft", type=float, default=0.1 , help="the weight of the fft loss")
         self.parser.add_argument("--lambda_flare", type=float, default=0.1 , help="the weight of the flareloss")
-        self.parser.add_argument("--lambda_gan", type=float, default=0.1 , help="the weight of the ganloss")
-        self.parser.add_argument("--lambda_region", type=float, default=0.1 , help="the weight of the regionloss")
+        self.parser.add_argument("--lambda_gan", type=float, default=5 , help="the weight of the ganloss")
+        self.parser.add_argument("--lambda_region", type=float, default=10, help="the weight of the regionloss")
         self.parser.add_argument("--debug", action='store_true',  help="temporary dataset for a try")
 
         # ---------------------------------------- step 6/6 : validation... ------------------------------------------------

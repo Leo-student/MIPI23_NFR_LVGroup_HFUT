@@ -168,13 +168,13 @@ def train(epoch):
             
             # loss =  loss_cont + opt.lambda_fft * loss_fft +   * loss_g
             # loss_per = criterion_per(preds,imgs)
-
-            # loss =  loss_cont + opt.lambda_fft * loss_fft + opt.lambda_gan *  loss_g + opt.lambda_region * loss_region 
-
             loss =  loss_cont  
             # loss =  loss_cont + opt.lambda_fft * loss_fft + opt.lambda_gan *  loss_g 
+            
+            loss.backward()
             optimizer.step()
             
+            # ---------------------
             #  Train Discriminator
             # ---------------------
             optimizer_D.zero_grad()
