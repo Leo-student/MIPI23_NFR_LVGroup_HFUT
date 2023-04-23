@@ -52,15 +52,18 @@ class ResidualBlock_noBN(nn.Module):
         return identity + out
 
 class SFTLayer(nn.Module):
-    def __init__(self, in_nc=32, out_nc=64, nf=32):
+    def __init__(self, c,  nf=2):
         super(SFTLayer, self).__init__()
-        self.SFT_scale_conv0 = nn.Conv2d(in_nc, nf, 1)
-        self.SFT_scale_conv1 = nn.Conv2d(nf, out_nc, 1)
-        self.SFT_shift_conv0 = nn.Conv2d(in_nc, nf, 1)
-        self.SFT_shift_conv1 = nn.Conv2d(nf, out_nc, 1)
+        self.in_nc = c 
+        self.out_nc = c 
+        self.SFT_scale_conv0 = nn.Conv2d(self.in_nc, nf, 1)
+        self.SFT_scale_conv1 = nn.Conv2d(nf, self.out_nc, 1)
+        self.SFT_shift_conv0 = nn.Conv2d(self.in_nc, nf, 1)
+        self.SFT_shift_conv1 = nn.Conv2d(nf, self.out_nc, 1)
 
     def forward(self, x):
         # x[0]: fea; x[1]: cond
+        # print(self.in_nc)
         scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(x[1]), 0.1, inplace=True))
         shift = self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(x[1]), 0.1, inplace=True))
         return x[0] * (scale + 1) + shift

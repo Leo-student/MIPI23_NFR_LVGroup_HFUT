@@ -56,7 +56,8 @@ class Flare_Image_Loader(data.Dataset):
 		self.data_source = data_source
 		self.ext = ['png','jpeg','jpg','bmp','tif']
 		self.data_list=[]
-		[self.data_list.extend(glob.glob(data_source + '/Flickr24K/*.' + e)) for e in self.ext]
+		# [self.data_list.extend(glob.glob(data_source + '/Flickr24K/*.' + e)) for e in self.ext]
+		[self.data_list.extend(glob.glob(data_source + '/result_Sony_crop/*.' + e)) for e in self.ext]
 		# self.data_list = glob.glob(data_source + '/Flickr24K/*.*')
 		self.flare_dict={}
 		self.flare_list=[]
