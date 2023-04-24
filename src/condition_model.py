@@ -130,8 +130,8 @@ class NAFBlock(nn.Module):
         self.SFT_layer1 = arch_util.SFTLayer(c)
         
     def forward(self, inp):
-        x = inp[0]
-        input = inp[0]
+        x = inp
+        input = inp
        
         
         x = self.norm1(x)
@@ -217,7 +217,7 @@ class NAFBlock_SFT(nn.Module):
         return (y + x * self.gamma, cond)
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=32, middle_blk_num=12, enc_blk_nums=[1, 1, 2, 4], dec_blk_nums=[1, 1, 1, 1], cond_blk_num = [1, 1, 1, 1] ):
+    def __init__(self, img_channel=3, width=8, middle_blk_num=2, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
     # def __init__(self, img_channel=3, width=32, middle_blk_num=12, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
         super().__init__()
 
@@ -333,7 +333,7 @@ class NAFNet(nn.Module):
         x = self.ending(x)
              
         out = inp - self.refine(x)
-
+        #x :flare  out:pred 
         return x, out
 
     def check_image_size(self, x):
