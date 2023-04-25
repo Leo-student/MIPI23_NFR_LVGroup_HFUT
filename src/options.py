@@ -7,16 +7,17 @@ class TrainOptions():
         
         # ---------------------------------------- step 1/6 : parameters preparing... ----------------------------------------
         self.parser.add_argument("--seed", type=int, default=42, help="random seed")
+        self.parser.add_argument("--gpu_idx", type=str, default='0', help="gpu index")
         self.parser.add_argument("--resume", action='store_true', help="if specified, resume the training")
         self.parser.add_argument("--results_dir", type=str, default='../train_results', help="path of saving models, images, log files")
         self.parser.add_argument("--experiment", type=str, default='condition', help="name of experiment")
         
         # ---------------------------------------- step 2/6 : data loading... ------------------------------------------------
         self.parser.add_argument("--data_source", type=str, default='../datasets/',  help="dataset root")
-        self.parser.add_argument("--train_bs", type=int, default=1, help=" size of the training batches (train_bs per GPU)")
+        self.parser.add_argument("--train_bs", type=int, default=8, help=" size of the training batches (train_bs per GPU)")
         self.parser.add_argument("--val_bs", type=int, default=4, help="size of the validating batches (val_bs per GPU)")
         self.parser.add_argument("--crop", type=int, default=512, help="image size after cropping")
-        self.parser.add_argument("--num_workers", type=int, default=15, help="number of cpu threads to use during batch generation")
+        self.parser.add_argument("--num_workers", type=int, default=2, help="number of cpu threads to use during batch generation")
         
         # ---------------------------------------- step 3/6 : model defining... ------------------------------------------------
         self.parser.add_argument("--data_parallel", action='store_true', help="if specified, training by data paralleling")
@@ -46,9 +47,12 @@ class TrainOptions():
         opt = self.parser.parse_args()
         
         if opt.data_parallel:
-            opt.train_bs = opt.train_bs * torch.cuda.device_count()
-            opt.val_bs = opt.val_bs * torch.cuda.device_count()
-            opt.num_workers = opt.num_workers * torch.cuda.device_count()
+            # opt.train_bs = opt.train_bs * torch.cuda.device_count()
+            # opt.val_bs = opt.val_bs * torch.cuda.device_count()
+            # opt.num_workers = opt.num_workers * torch.cuda.device_count()
+            opt.train_bs = opt.train_bs
+            opt.val_bs = opt.val_bs 
+            opt.num_workers = opt.num_workers 
         
         if show:
             self.show(opt)
