@@ -202,9 +202,10 @@ def generate(model, epoch, models_dir, test_images_dir ):
         with torch.no_grad():
             start_time = time.time()
             _, pred = model(img)
+            pred_blend = synthesis.blend_light_source(img.cpu(), pred.cpu())
             times = time.time() - start_time
 
-        pred_clip = torch.clamp(pred, 0, 1)
+        pred_clip = torch.clamp(pred_blend, 0, 1)
 
         time_meter.update(times, 1)
 
