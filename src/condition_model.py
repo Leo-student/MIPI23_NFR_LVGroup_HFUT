@@ -144,7 +144,7 @@ class NAFBlock(nn.Module):
 
         x = self.dropout1(x)
 
-        y = input + x * self.beta
+        y = inp + x * self.beta
 
         x = self.conv4(self.norm2(y))
         x = self.sg(x)
@@ -189,8 +189,10 @@ class NAFBlock_SFT(nn.Module):
         
     def forward(self, inp):
         
-        x = inp[0]
-        cond = inp[1]
+        # x = inp[0]
+        # cond = inp[1]
+        x = inp
+        cond = inp
         # print(x.shape, cond.shape)
         x = self.SFT_layer1((x, cond))
        
@@ -217,8 +219,8 @@ class NAFBlock_SFT(nn.Module):
         return (y + x * self.gamma, cond)
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=8, middle_blk_num=2, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
-    # def __init__(self, img_channel=3, width=32, middle_blk_num=12, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
+    # def __init__(self, img_channel=3, width=8, middle_blk_num=2, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
+    def __init__(self, img_channel=3, width=32, middle_blk_num=12, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
@@ -321,7 +323,7 @@ class NAFNet(nn.Module):
         
         # (x, _) = self.middle_blks((x,cond))
         x = self.middle_blks(x)
-        
+       
         for decoder, up, enc_skip, cond_fea, dec_cond_fn in zip(self.decoders, self.ups, encs[::-1], conds[::-1], self.dec_cond_feas):
             
             x = up(x)
@@ -368,30 +370,58 @@ class Discriminator(nn.Module):
         # Concatenate image and condition image by channels to produce input
         img_input = torch.cat((img_A, img_B), 1)
         return self.model(img_input)
-    
+
+
 if __name__ == '__main__':
     img_channel = 3
-    width = 32
+    width = 8
 
     # enc_blks = [2, 2, 4, 8]
     # middle_blk_num = 12
     # dec_blks = [2, 2, 2, 2]
 
-    enc_blks = [1, 1, 1, 28]
-    middle_blk_num = 1
-    dec_blks = [1, 1, 1, 1]
+    enc_blks = [1, 1, 2]
+    middle_blk_num = 12
+    dec_blks = [1, 1, 1]
     
     net = NAFNet(img_channel=img_channel, width=width, middle_blk_num=middle_blk_num,
                       enc_blk_nums=enc_blks, dec_blk_nums=dec_blks)
 
 
-    inp_shape = (3, 256, 256)
+    inp_shape = (3, 512, 512)
 
     from ptflops import get_model_complexity_info
 
     macs, params = get_model_complexity_info(net, inp_shape, verbose=False, print_per_layer_stat=False)
-
+    print(macs, params)  
     params = float(params[:-3])
     macs = float(macs[:-4])
 
-    print(macs, params)
+    print(macs, params)  
+# if __name__ == '__main__':
+#     img_channel = 3
+#     width = 32
+
+#     # enc_blks = [2, 2, 4, 8]
+#     # middle_blk_num = 12
+#     # dec_blks = [2, 2, 2, 2]
+
+#     enc_blks = [2, 2, 4, 8]
+#     middle_blk_num = 12
+#     dec_blks = [2, 2, 2, 2]
+    
+#     net = NAFNet(img_channel=img_channel, width=width, middle_blk_num=middle_blk_num,
+#                       enc_blk_nums=enc_blks, dec_blk_nums=dec_blks)
+
+
+#     inp_shape = (3, 512, 512)
+
+#     from ptflops import get_model_complexity_info
+
+#     # macs, params = get_model_complexity_info(net, inp_shape, verbose=True, print_per_layer_stat=True)
+#     macs, params = get_model_complexity_info(net, inp_shape, verbose=False, print_per_layer_stat=False)
+#     print(macs, params)
+#     params = float(params[:-3])
+#     macs = float(macs[:-4])
+
+#     print(macs, params)
