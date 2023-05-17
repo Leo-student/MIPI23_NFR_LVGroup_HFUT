@@ -1,17 +1,20 @@
 from options import TrainOptions
-opt = TrainOptions().parse()
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_idx
+
 
 from log import Log
-log = Log(__name__).getlog()
+
+
+import time
+
 
 from trainer import Trainer
 
 import torch 
 def main(opt):
+    log = Log(__name__, opt).getlog()
     start_epoch = 1
     trainer = Trainer(opt)
+    start_time = time.time()
     for epoch in range(start_epoch, opt.n_epochs + 1):
         trainer.train(epoch)
 
@@ -19,12 +22,17 @@ def main(opt):
             trainer.val(epoch)
             trainer.generate()
             trainer.evaluate(epoch)
+    end_time = time.time()
+    execution_time  =  end_time - start_time 
+    log.info("Total training time:  {:.3f} hours and {:.3f} days".format(execution_time/3600, execution_time/3600/24))
             
     
 
 
 if __name__ == '__main__':
-    
+    opt = TrainOptions().parse()
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_idx
     torch.manual_seed(opt.seed)
     # torch.backends.cudnn.enabled = True
     # torch.backends.cudnn.benchmark = True
