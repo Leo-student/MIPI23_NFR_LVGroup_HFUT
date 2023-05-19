@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import arch_util as arch_util
+import model.arch_util as arch_util
+from options import TrainOptions
+from model.common import BaseNetwork
+
+opt = TrainOptions().parse(show =False)
 
 class BasicConv(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, stride, bias=True, norm=False, active=True, transpose=False):
@@ -37,11 +41,49 @@ class ResBlock(nn.Module):
     def forward(self, x):
         return self.main(x) + x
 
+# class ResBlock(nn.Module):
+#     def __init__(self, dim, rates):
+#         super(ResBlock, self).__init__()
+#         self.rates = rates
+#         for i, rate in enumerate(rates):
+            
+#             self.__setattr__(
+#                 'block{}'.format(str(i).zfill(2)), 
+#                 nn.Sequential(
+#                     nn.ReflectionPad2d(int(rate)),
+#                     nn.Conv2d(dim, dim//4, 3, padding=0, dilation=int(rate)),
+#                     nn.ReLU(True)))
+#         self.fuse = nn.Sequential(
+#             nn.ReflectionPad2d(1),
+#             nn.Conv2d(dim, dim, 3, padding=1, dilation=1))
+#         self.gate = nn.Sequential(
+#             nn.ReflectionPad2d(1),
+#             nn.Conv2d(dim, dim, 3, padding=1, dilation=1))
+
+#     def forward(self, x):
+        
+
+#         out = [self.__getattr__(f'block{str(i).zfill(2)}')(x) for i in range(len(self.rates))]
+#         # out = [self.__getattr__(f'block{str(i).zfill(2)}')(x) ]
+#         out = torch.cat(out, 1)
+#         out = self.fuse(out)
+#         mask = my_layer_norm(self.gate(x))
+#         mask = torch.sigmoid(mask)
+#         return x * (1 - mask) + out * mask
+
+# def my_layer_norm(feat):
+#     mean = feat.mean((2, 3), keepdim=True)
+#     std = feat.std((2, 3), keepdim=True) + 1e-9
+#     feat = 2 * (feat - mean) / std - 1
+#     feat = 5 * feat
+#     return feat
+
 class EBlock(nn.Module):
     def __init__(self, out_channel, num_res=8):
         super(EBlock, self).__init__()
 
         layers = [ResBlock(out_channel) for _ in range(num_res)]
+        # layers = [ResBlock(out_channel, opt.rates) for _ in range(num_res)]
 
         self.layers = nn.Sequential(*layers)
 
@@ -219,8 +261,8 @@ class NAFBlock_SFT(nn.Module):
         return (y + x * self.gamma, cond)
 class NAFNet(nn.Module):
 
-    # def __init__(self, img_channel=3, width=8, middle_blk_num=2, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
-    def __init__(self, img_channel=3, width=32, middle_blk_num=12, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
+    def __init__(self, img_channel=3, width=8, middle_blk_num=16, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
+    # def __init__(self, img_channel=3, width=16, middle_blk_num=4, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
@@ -265,15 +307,19 @@ class NAFNet(nn.Module):
                 nn.Conv2d(chan, 2*chan, 2, 2)
             )
             chan = chan * 2
-            
-            
-            
         
         self.middle_blks = \
             nn.Sequential(
-                *[NAFBlock(chan) for _ in range(middle_blk_num)]
-                # *[NAFBlock_SFT(chan) for _ in range(middle_blk_num)]
-            )
+                *[AOTBlock(chan, opt.rates) for _ in range(middle_blk_num)]
+            )   
+            
+            
+        
+        # self.middle_blks = \
+        #     nn.Sequential(
+        #         *[NAFBlock(chan) for _ in range(middle_blk_num)]
+        #         # *[NAFBlock_SFT(chan) for _ in range(middle_blk_num)]
+        #     )
 
         for num in dec_blk_nums:
             self.ups.append(
@@ -371,6 +417,87 @@ class Discriminator(nn.Module):
         img_input = torch.cat((img_A, img_B), 1)
         return self.model(img_input)
 
+class InpaintGenerator(BaseNetwork):
+    def __init__(self, opt):  # 1046
+        super(InpaintGenerator, self).__init__()
+
+        self.encoder = nn.Sequential(
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(4, 64, 7),
+            nn.ReLU(True),
+            nn.Conv2d(64, 128, 4, stride=2, padding=1),
+            nn.ReLU(True),
+            nn.Conv2d(128, 256, 4, stride=2, padding=1),
+            nn.ReLU(True)
+        )
+
+        self.middle = nn.Sequential(*[AOTBlock(256, opt.rates) for _ in range(opt.num_res)])
+
+        self.decoder = nn.Sequential(
+            UpConv(256, 128),
+            nn.ReLU(True),
+            UpConv(128, 64),
+            nn.ReLU(True),
+            nn.Conv2d(64, 3, 3, stride=1, padding=1)
+        )
+
+        self.init_weights()
+
+    def forward(self, x, mask):
+        x = torch.cat([x, mask], dim=1)
+        x = self.encoder(x)
+        x = self.middle(x)
+        x = self.decoder(x)
+        out = torch.tanh(x)
+        flare =  x - out
+        return flare, out 
+
+
+class UpConv(nn.Module):
+    def __init__(self, inc, outc, scale=2):
+        super(UpConv, self).__init__()
+        self.scale = scale
+        self.conv = nn.Conv2d(inc, outc, 3, stride=1, padding=1)
+
+    def forward(self, x):
+        return self.conv(F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True))
+
+
+class AOTBlock(nn.Module):
+    def __init__(self, dim, rates):
+        super(AOTBlock, self).__init__()
+        self.rates = rates
+       
+        for i, rate in enumerate(rates):
+            # print(rate)
+            self.__setattr__(
+                'block{}'.format(str(i).zfill(2)), 
+                nn.Sequential(
+                    nn.ReflectionPad2d(int(rate)),
+                    nn.Conv2d(dim, dim//4, 3, padding=0, dilation=int(rate)),
+                    nn.ReLU(True)))
+        self.fuse = nn.Sequential(
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(dim, dim, 3, padding=0, dilation=1))
+        self.gate = nn.Sequential(
+            nn.ReflectionPad2d(1),
+            nn.Conv2d(dim, dim, 3, padding=0, dilation=1))
+
+    def forward(self, x):
+        out = [self.__getattr__(f'block{str(i).zfill(2)}')(x) for i in range(len(self.rates))]
+        out = torch.cat(out, 1)
+        out = self.fuse(out)
+        mask = my_layer_norm(self.gate(x))
+        mask = torch.sigmoid(mask)
+        return x * (1 - mask) + out * mask
+
+
+def my_layer_norm(feat):
+    mean = feat.mean((2, 3), keepdim=True)
+    std = feat.std((2, 3), keepdim=True) + 1e-9
+    feat = 2 * (feat - mean) / std - 1
+    feat = 5 * feat
+    return feat
 
 if __name__ == '__main__':
     img_channel = 3
