@@ -79,7 +79,7 @@ class ResBlock(nn.Module):
 #     return feat
 
 class EBlock(nn.Module):
-    def __init__(self, out_channel, num_res=8):
+    def __init__(self,  num_res, out_channel):
         super(EBlock, self).__init__()
 
         layers = [ResBlock(out_channel) for _ in range(num_res)]
@@ -197,7 +197,7 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 class NAFBlock_SFT(nn.Module):
-    def __init__(self, c, DW_Expand=2, FFN_Expand=2, drop_out_rate=0.):
+    def __init__(self, c, DW_Expand=2, FFN_Expand=2, drop_out_rate=0.1):
         super().__init__()
         dw_channel = c * DW_Expand
         self.conv1 = nn.Conv2d(in_channels=c, out_channels=dw_channel, kernel_size=1, padding=0, stride=1, groups=1, bias=True)
@@ -261,7 +261,7 @@ class NAFBlock_SFT(nn.Module):
         return (y + x * self.gamma, cond)
 class NAFNet(nn.Module):
 
-    def __init__(self, img_channel=3, width=8, middle_blk_num=16, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
+    def __init__(self, opt = opt, img_channel=3, width=16, middle_blk_num=23, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
     # def __init__(self, img_channel=3, width=16, middle_blk_num=4, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
         super().__init__()
 
@@ -339,7 +339,7 @@ class NAFNet(nn.Module):
             )
         self.padder_size = 2 ** len(self.encoders)
         
-        self.refine = EBlock(out_channel=3, num_res=4)
+        self.refine = EBlock(opt.num_res,out_channel=3 )
         
         
         

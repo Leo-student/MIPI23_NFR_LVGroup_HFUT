@@ -6,6 +6,8 @@ import shutil
 import numpy as np
 
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+from log import Log
+log = Log(__name__).getlog()
 
 def set_random_seed(seed, deterministic=False):
     
@@ -84,8 +86,11 @@ def print_para_num(model):
     
     total_params = sum(p.numel() for p in model.parameters())
     total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print('total parameters: %d' % total_params)
-    print('trainable parameters: %d' % total_trainable_params)
+    log.info('total parameters: {:.3f} M'.format(total_params/1e6))
+    log.info('total parameters: {:.3f} M'.format(total_params/1e6))
+
+    # log.info('total parameters: %d M' % (total_params/1e6))
+    log.info('trainable parameters: {:.3f} M'.format(total_trainable_params/1e6))
 
 class AverageMeter(object):
     
