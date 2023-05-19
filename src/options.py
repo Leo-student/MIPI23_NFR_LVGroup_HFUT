@@ -1,7 +1,6 @@
 import torch
 import argparse
-from log import Log
-log = Log(__name__).getlog()
+import yaml
 
 
 class TrainOptions():
@@ -9,7 +8,7 @@ class TrainOptions():
         self.parser = argparse.ArgumentParser()
         
         # ---------------------------------------- step 1/6 : parameters preparing... ----------------------------------------
-        self.parser.add_argument("--seed", type=int, default=42, help="random seed")
+        self.parser.add_argument("--seed", type=int, default=23, help="random seed")
         self.parser.add_argument("--gpu_idx", type=str, default='0', help="gpu index")
         self.parser.add_argument("--resume", action='store_true', help="if specified, resume the training")
         self.parser.add_argument("--results_dir", type=str, default='../train_results', help="path of saving models, images, log files")
@@ -25,10 +24,9 @@ class TrainOptions():
         # ---------------------------------------- step 3/6 : model defining... ------------------------------------------------
         self.parser.add_argument("--data_parallel", action='store_true', help="if specified, training by data paralleling")
         self.parser.add_argument("--pretrained", type=str, default=None, help="pretrained state")
-        self.parser.add_argument("--pretrained_model", type=str, default=None, help="pretrained model path")
-        self.parser.add_argument("--pretrained_d", type=str, default=None, help="pretrained d path")
         self.parser.add_argument("--num_res", type=int, default=8, help="number of resblocks after each convolution")
         self.parser.add_argument("--base_channel", type=int, default=32, help="number of output channels for first convolution")
+        self.parser.add_argument("--rates", type=str, default='1248', help="number of AOT blocks")
         
         # ---------------------------------------- step 4/6 : requisites defining... ------------------------------------------------
         self.parser.add_argument("--lr", type=float, default=0.0001, help="learning rate")
@@ -47,9 +45,24 @@ class TrainOptions():
         # ---------------------------------------- step 6/6 : validation... ------------------------------------------------
         # self.parser.add_argument("--model_path", type=str, default= "", help="trained model path for validation")
         self.parser.add_argument("--save_image", action='store_true', default=True, help="if specified, test on a small dataset")
+        
+        
+        
     def parse(self, show=True):
         opt = self.parser.parse_args()
+        config = {}
+        # try:
+        #     with open('config.yml', 'r') as file:
+        #         config = yaml.safe_load(file)
+        # except FileNotFoundError:
+        #     pass
         
+        args = vars(opt)
+        config.update(args)
+        
+        with open('{}/{}/{}.yml'.format(opt.results_dir, opt.experiment,opt.experiment), 'w') as file:
+            yaml.safe_dump(config, file)
+            
         if opt.data_parallel:
             # opt.train_bs = opt.train_bs * torch.cuda.device_count()
             # opt.val_bs = opt.val_bs * torch.cuda.device_count()
@@ -60,18 +73,20 @@ class TrainOptions():
         
         if show:
             self.show(opt)
-        
+            show = False
         return opt
     
     def show(self, opt):
-        
+        from log import Log
+        # log = Log(__name__).getlog()
+        log = Log(__name__).writelog(opt)
+
         args = vars(opt)
         log.info('************ Options ************')
         for k, v in sorted(args.items()):
-            pass
             log.info('%s: %s' % (str(k), str(v)))
         log.info('************** End **************')
-
+        
 
 class TestOptions():
     def __init__(self):
