@@ -1,5 +1,7 @@
 from options import TrainOptions
-
+opt = TrainOptions().parse()
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_idx
 
 from log import Log
 
@@ -30,9 +32,7 @@ def main(opt):
 
 
 if __name__ == '__main__':
-    opt = TrainOptions().parse()
-    import os
-    os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_idx
+   
     torch.manual_seed(opt.seed)
     # torch.backends.cudnn.enabled = True
     # torch.backends.cudnn.benchmark = True
