@@ -1,5 +1,4 @@
 import time
-import time
 from tqdm import tqdm
 from skimage import io
 from statistics import mean
@@ -14,12 +13,14 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import *
 import synthesis
 from options import TrainOptions
-from condition_model import NAFNet
+from model.condition_model import NAFNet
+from model.encoder_decoder import EncoderDecoder
+
 from losses import LossCont, LossFreqReco, LossGan, LossCycleGan, LossPerceptual
 from datasets import Flare_Image_Loader, SingleImgDataset
 
 from log import Log
-log = Log(__name__).getlog()
+# log = Log(__name__).getlog()
 
 
 class Trainer():
@@ -29,6 +30,10 @@ class Trainer():
         self.best_score = 0
         self.best_epoch = 0 
         self.best_psnr = 0
+        
+        self.start_time = None
+        self.end_time = None
+        self.log = Log(__name__).writelog(self.opt)
         #[1]parameters preparing
         
         if opt.debug :
@@ -36,10 +41,15 @@ class Trainer():
         else :
             self.train_dataset = Flare_Image_Loader(data_source=opt.data_source + '/train', crop=opt.crop)
             
-        self.load()
+        self.fm_detection = EncoderDecoder().cuda()
+        # print_para_num(self.fm_detection)
         
-        self.model = NAFNet().cuda()
+        
+        
+        # self.model = InpaintGenerator(opt).cuda()
+        self.model = NAFNet(opt).cuda()
         print_para_num(self.model)
+        
         
         num_gpus = torch.cuda.device_count()
         cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES', '') 
@@ -47,9 +57,12 @@ class Trainer():
         if opt.data_parallel:
             log.info(f'Number of available GPUs is {num_gpus}  They are"{cuda_visible_devices}" at {device_ids}.')
             self.model = nn.DataParallel(self.model, device_ids=device_ids).cuda()
+            self.fm_detection = nn.DataParallel(self.fm_detection, device_ids=device_ids).cuda()
+            
         else: 
             device = torch.device('cuda:0')
-            model = model.to(device)  
+            self.model = self.model.to(device)  
+            self.fm_detection = self.fm_detection.to(device)  
         
         
         self.criterion_cont = LossCont()
@@ -57,11 +70,11 @@ class Trainer():
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=opt.lr)
 
-        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [50,100,], 0.5)  
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [50,100], 0.5)  
         
         if self.opt.tensorboard: 
             self.writer = SummaryWriter(log_dir=self.log_dir)
-            
+        self.load()  
     def load(self):
         #load dataset 
         self.train_dataset.load_scattering_flare()
@@ -79,21 +92,35 @@ class Trainer():
             self.model.load_state_dict(state["model"])
             
             self.optimizer.load_state_dict(state['optimizer'])
-            self.scheduler.load_state_dict(state['scheduler'])
+            # self.scheduler.load_state_dict(state['scheduler'])
 
             start_epoch = state['epoch'] + 1
             log.info('Resume model from epoch %d' % (start_epoch))
         
         #load pretrained 
-        if self.opt.pretrained:
-            pass
+        if self.opt.pretrained is not None :
+            # if not self.opt.data_parallel:
+                ckp = torch.load(self.opt.pretrained)
+                new_state_dict = {}
+                for key, value in ckp['g'].items():
+                    if key.startswith('module.'):  # 如果键以 "module." 开头，则去除该前缀
+                        new_key = key[len('module.'):]
+                        new_state_dict[new_key] = value
+                    else:
+                        new_state_dict[key] = value
+                
+                self.fm_detection.load_state_dict(new_state_dict)
+            # else :
+            #     ckp = torch.load(self.opt.pretrained)
+            #     self.fm_detection.load_state_dict(ckp['g'])
+            
         
     def save(self):
         pass
         
         
     def train(self,epoch):
-        
+        self.start_time = time.time()
         self.model.train()
         max_iter = len(self.train_dataloader)
         # start_epoch = state['epoch'] + 1
@@ -112,29 +139,32 @@ class Trainer():
             # for i, (gts, flares, imgs, _) in enumerate(train_dataloader):
                 gts, flares, imgs = gts.cuda(), flares.cuda(), imgs.cuda()
                 cur_batch = imgs.shape[0]
-
-                
+                light_source = synthesis.get_highlight_mask(flares)
+                mask_gt = synthesis.flare_to_mask(flares)
+                mask_lf =  -  light_source + mask_gt
+                mask = self.fm_detection(imgs)
+                # images_masked = (imgs * (1 - mask).float()) + mask * 
                 # ------------------
                 #  Train Generators
                 # ------------------
                 self.optimizer.zero_grad()
-                preds_flare, preds = self.model(imgs)
-
-                loss_cont =   self.opt.lambda_flare * self.criterion_cont(preds_flare, flares) + self.criterion_cont(preds, gts)
-            
-                loss_fft =   self.opt.lambda_flare * self.criterion_fft(preds_flare, flares) + self.criterion_cont(preds, gts)
                 
-                light_source = synthesis.get_highlight_mask(flares)
-                mask_gt = synthesis.flare_to_mask(flares)
-                mask_lf =  -  light_source + mask_gt
+                preds_flare, preds = self.model(imgs )
+                # preds_flare, preds = self.model(imgs, mask )
+
+                loss_cont =   self.opt.lambda_flare * self.criterion_cont(preds_flare, flares).cuda() + self.criterion_cont(preds, gts).cuda()
+            
+                loss_fft =   self.opt.lambda_flare * self.criterion_fft(preds_flare, flares).cuda() + self.criterion_cont(preds, gts).cuda()
+                
+                
                 masked_lf_scene = (1 - mask_lf) * imgs + mask_lf * preds
                 masked_lf_flare = (1 - mask_lf) * imgs + mask_lf * preds_flare
                 
                 
-                loss_region = self.criterion_cont(masked_lf_scene, gts) 
-                loss_flare = self.criterion_fft(masked_lf_flare, gts) 
+                loss_region = self.criterion_cont(masked_lf_scene, gts).cuda()
+                loss_flare = self.criterion_fft(masked_lf_flare, gts).cuda()
                 
-                lambda_region =   (512 * 512 * cur_batch)  / torch.sum(mask_lf).cpu().numpy() 
+                lambda_region =   (512 * 512 * cur_batch)  / (torch.sum(mask_lf).cpu().numpy() + 1e-9) 
                 # print(lambda_region, torch.sum(mask_gt), torch.sum(mask_lf), torch.sum(light_source) );print(" ")
                 
                 
@@ -161,14 +191,14 @@ class Trainer():
         if self.opt.tensorboard: 
             self.writer.add_scalar('lr', self.scheduler.get_last_lr()[0], epoch)
         
-        torch.save({'model': self.model.state_dict(), 'optimizer': self.optimizer.state_dict(),  'epoch': epoch}, self.models_dir + '/latest.pth')
+        torch.save({'model': self.model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
         self.scheduler.step()
         
         
         
     def val(self,epoch):
         self.model.eval()
-
+        self.fm_detection.eval()
         # print(''); 
         log.info('Validating...')
 
@@ -178,7 +208,9 @@ class Trainer():
             img = img.cuda()
 
             with torch.no_grad():
+                mask = self.fm_detection(img)
                 pred_flare, pred = self.model(img)
+                # pred_flare, pred = self.model(img, mask)
                 pred_clip = torch.clamp(pred, 0, 1)
                 pred_flare_clip = torch.clamp(pred_flare, 0, 1)
 
@@ -214,8 +246,10 @@ class Trainer():
 
             with torch.no_grad():
                 start_time = time.time()
+                mask = self.fm_detection(img)
                 _, pred = self.model(img)
-                pred_blend = synthesis.blend_light_source(img.cpu(), pred.cpu())
+                # _, pred = self.model(img, mask)
+                pred_blend = synthesis.blend_light_source(img.cuda(), pred.cuda())
                 times = time.time() - start_time
 
             pred_clip = torch.clamp(pred_blend, 0, 1)
@@ -304,7 +338,7 @@ class Trainer():
             self.writer.add_scalar('mean_psnr',mean_psnr, epoch) 
             self.writer.add_scalar('best_psnr',self.best_psnr, epoch) 
         
-        log.info('{}: {:.3f} dB. {}: {:.3f} dB. {}: {:.3f} dB. Score: {:.3f} Best{:.3f} at Epoch: {} best pnsr= {:.3f}'.format('G-PSNR', glare_psnr, 'S-PSNR', streak_psnr, 'ALL-PSNR', global_psnr, mean_psnr, self.best_score,self.best_epoch,self.best_psnr))
+        self.log.info('{}: {:.3f} dB. {}: {:.3f} dB. {}: {:.3f} dB. Score: {:.3f} Best{:.3f} at Epoch: {} best pnsr= {:.3f}'.format('G-PSNR', glare_psnr, 'S-PSNR', streak_psnr, 'ALL-PSNR', global_psnr, mean_psnr, self.best_score,self.best_epoch,self.best_psnr))
         
         if update_best:
             os.rename(self.models_dir + "/latest.pth", self.models_dir + "/best.pth")
