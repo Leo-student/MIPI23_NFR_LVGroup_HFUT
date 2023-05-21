@@ -14,8 +14,11 @@ from trainer_restored import Trainer
 import torch 
 def main(opt):
     log = Log(__name__, opt).getlog()
-    start_epoch = 1
+    
     trainer = Trainer(opt)
+    
+    start_epoch = trainer.load_epoch_idx()
+    
     start_time = time.time()
     for epoch in range(start_epoch, opt.n_epochs + 1):
         trainer.train(epoch)

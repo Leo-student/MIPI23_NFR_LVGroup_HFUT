@@ -42,32 +42,33 @@ class Trainer():
         else :
             self.train_dataset = Flare_Image_Loader(data_source=opt.data_source + '/train', crop=opt.crop)
             
-        self.fm_detection = EncoderDecoder().cuda()
+        # self.fm_detection = EncoderDecoder().cuda()
         # print_para_num(self.fm_detection)
         
         
         
         # self.model = InpaintGenerator(opt).cuda()
-        self.model = NAFNet().cuda()
-        self.refine_model = NAFNet().cuda()
+        # self.model = NAFNet().cuda()
+        self.refine_model = UNetD(3).cuda()
         
-        print_para_num(self.model)
-        self.load() 
+        print_para_num(self.refine_model)
+        self.load_dataset() 
         
         num_gpus = torch.cuda.device_count()
         cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES', '') 
         device_ids = [int(i) for i in range(len(cuda_visible_devices.split(','))) ]
+
         if opt.data_parallel:
             log.info(f'Number of available GPUs is {num_gpus}  They are"{cuda_visible_devices}" at {device_ids}.')
-            self.model = nn.DataParallel(self.model, device_ids=device_ids).cuda()
-            self.fm_detection = nn.DataParallel(self.fm_detection, device_ids=device_ids).cuda()
+            # self.model = nn.DataParallel(self.model, device_ids=device_ids).cuda()
+            # self.fm_detection = nn.DataParallel(self.fm_detection, device_ids=device_ids).cuda()
             self.refine_model = nn.DataParallel(self.refine_model, device_ids=device_ids).cuda()
             
         else: 
             log.info(f'Number of available GPUs is {num_gpus}  They are"{cuda_visible_devices}" at {device_ids}.')
             device = torch.device('cuda:0')
-            self.model = self.model.to('cuda')  
-            self.fm_detection = self.fm_detection.to('cuda')  
+            # self.model = self.model.to('cuda')  
+            # self.fm_detection = self.fm_detection.to('cuda')  
             self.refine_model =  self.refine_model.to('cuda')
         
         self.criterion_cont = LossCont()
@@ -76,11 +77,18 @@ class Trainer():
         self.optimizer = torch.optim.AdamW(self.refine_model.parameters(), lr=opt.lr)
 
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [50,100], 0.5)  
-        
+        self.start_epoch = 1
+
+        if self.opt.resume:
+            self.load_resume_ckp()  
+
+        if self.opt.pretrained is not None :
+            self.load_pretrained()
+
         if self.opt.tensorboard: 
             self.writer = SummaryWriter(log_dir=self.log_dir)
-        # self.load()  
-    def load(self):
+          
+    def load_dataset(self):
         #load dataset 
         self.train_dataset.load_scattering_flare()
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=self.opt.train_bs, shuffle=True, num_workers=self.opt.num_workers, pin_memory=True, prefetch_factor = 4)
@@ -91,19 +99,38 @@ class Trainer():
         self.val_dataloader = DataLoader(self.val_dataset, batch_size=self.opt.val_bs, shuffle=False, num_workers=self.opt.num_workers, pin_memory=True)    
         log.info('successfully loading validating pairs. =====> qty:{} bs:{}'.format(len(self.val_dataset),self.opt.val_bs))
 
+    def load_resume_ckp(self):
         #load resume 
-        if self.opt.resume:
             state = torch.load(self.models_dir + '/best.pth')
-            self.model.load_state_dict(state["model"])
-            
+            # print(state.keys())
+            state_dict = state['model']
             self.optimizer.load_state_dict(state['optimizer'])
+            # exit()
+            new_state_dict = {}
+            for key, value in state_dict.items():
+                if key.startswith('module.'):
+                    new_key = key[7:]  # 去掉"module."前缀
+                else:
+                    new_key = key
+                new_state_dict[new_key] = value
+
+            self.refine_model.load_state_dict(new_state_dict, strict=False)
+            # self.refine_model.load_state_dict(state["model"])
+            
+            
             # self.scheduler.load_state_dict(state['scheduler'])
 
-            start_epoch = state['epoch'] + 1
-            log.info('Resume model from epoch %d' % (start_epoch))
+            self.start_epoch = state['epoch'] + 1
         
+            print('Resume  from epoch %d' % (self.start_epoch))
+
+            
+    def load_epoch_idx(self):
+        return self.start_epoch
+
+    def load_pretrained(self):  
         #load pretrained 
-        if self.opt.pretrained is not None :
+       
             state = torch.load(self.opt.pretrained)
             self.model.load_state_dict(state["model"])
             
@@ -116,10 +143,9 @@ class Trainer():
         
     def train(self,epoch):
         self.start_time = time.time()
-        self.model.train()
+        # self.model.train()
         max_iter = len(self.train_dataloader)
-        # start_epoch = state['epoch'] + 1
-        # print('Resume d from epoch %d' % (start_epoch))
+       
 
         psnr_meter = AverageMeter()
         iter_cont_meter = AverageMeter()
@@ -137,27 +163,27 @@ class Trainer():
                 light_source = synthesis.get_highlight_mask(flares)
                 mask_gt = synthesis.flare_to_mask(flares)
                 mask_lf =  -  light_source + mask_gt
-                mask = self.fm_detection(imgs)
+                # mask = self.fm_detection(imgs)
                 # images_masked = (imgs * (1 - mask).float()) + mask * 
                 # ------------------
                 #  Train Generators
                 # ------------------
                 self.optimizer.zero_grad()
                 
-                preds_flare, preds = self.model(imgs)
+                preds = self.refine_model(imgs)
                 # preds = preds.to(self.refine_model.device)
-                preds_flare, preds = self.refine_model(preds)
-                loss_cont =   self.opt.lambda_flare * self.criterion_cont(preds_flare, flares).cuda() + self.criterion_cont(preds, gts).cuda()
+                # preds_flare, preds = self.refine_model(preds)
+                loss_cont =    self.criterion_cont(preds, gts).cuda()
             
-                loss_fft =   self.opt.lambda_flare * self.criterion_fft(preds_flare, flares).cuda() + self.criterion_cont(preds, gts).cuda()
+                loss_fft =    self.criterion_cont(preds, gts).cuda()
                 
                 
                 masked_lf_scene = (1 - mask_lf) * imgs + mask_lf * preds
-                masked_lf_flare = (1 - mask_lf) * imgs + mask_lf * preds_flare
+                
                 
                 
                 loss_region = self.criterion_cont(masked_lf_scene, gts).cuda()
-                loss_flare = self.criterion_fft(masked_lf_flare, gts).cuda()
+               
                 
                 lambda_region =   (512 * 512 * cur_batch)  / (torch.sum(mask_lf).cpu().numpy() + 1e-9) 
                 # print(lambda_region, torch.sum(mask_gt), torch.sum(mask_lf), torch.sum(light_source) );print(" ")
@@ -186,14 +212,14 @@ class Trainer():
         if self.opt.tensorboard: 
             self.writer.add_scalar('lr', self.scheduler.get_last_lr()[0], epoch)
         
-        torch.save({'pretrained_model': self.model.state_dict(),'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
+        torch.save({'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
         self.scheduler.step()
         
         
         
     def val(self,epoch):
-        self.model.eval()
-        self.fm_detection.eval()
+        # self.model.eval()
+        # self.fm_detection.eval()
         # print(''); 
         log.info('Validating...')
 
@@ -203,24 +229,24 @@ class Trainer():
             img = img.cuda()
 
             with torch.no_grad():
-                mask = self.fm_detection(img)
-                pred_flare, pred = self.model(img)
+                # mask = self.fm_detection(img)
+                # pred = self.model(img)
                 
               
                
-                pred_flare, pred= self.refine_model(pred)
+                pred= self.refine_model(img)
                 # pred_flare, pred = self.model(img, mask)
                 pred_clip = torch.clamp(pred, 0, 1)
-                pred_flare_clip = torch.clamp(pred_flare, 0, 1)
+                # pred_flare_clip = torch.clamp(pred_flare, 0, 1)
 
             if i < 5:
                 # save_image(pred_clip, val_images_dir + '/epoch_{:0>4}_'.format(epoch) + os.path.basename(path[0]))
                 save_image(pred_clip, self.val_images_dir + '/epoch_{:0>4}_img_'.format(epoch) + os.path.basename(path[0]), nrow=self.opt.val_bs//2, normalize=True, scale_each=True)
-                save_image(pred_flare_clip, self.val_images_dir + '/epoch_{:0>4}_flare_'.format(epoch) + os.path.basename(path[0]), nrow=self.opt.val_bs//2, normalize=True, scale_each=True)
+                # save_image(pred_flare_clip, self.val_images_dir + '/epoch_{:0>4}_flare_'.format(epoch) + os.path.basename(path[0]), nrow=self.opt.val_bs//2, normalize=True, scale_each=True)
             else:
                 break
 
-        torch.save({'pretrained_model': self.model.state_dict(),'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(),  'epoch': epoch}, self.models_dir + '/epoch_{:0>4}.pth'.format(epoch))
+        torch.save({'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(),  'epoch': epoch}, self.models_dir + '/epoch_{:0>4}.pth'.format(epoch))
 
         log.info('Epoch[{:0>4}/{:0>4}] Time: {:.4f}'.format(epoch, self.opt.n_epochs, timer.timeit()))#; print('')
         
@@ -232,12 +258,12 @@ class Trainer():
         state = torch.load(self.models_dir  + '/latest.pth')
         # model = model.module ###
         self.refine_model.load_state_dict(state['model'])
-        self.model.load_state_dict(state['pretrained_model'])
+        # self.model.load_state_dict(state['pretrained_model'])
         # model.load_state_dict(torch.load(models_dir  + '/epoch_{:0>4}.pth'.format(epoch)))
 
 
         # print('successfully loading pretrained model.')
-        self.model.eval()
+        # self.model.eval()
         self.refine_model.eval()
 
         time_meter = AverageMeter()
@@ -247,8 +273,8 @@ class Trainer():
 
             with torch.no_grad():
                 start_time = time.time()
-                _, pred = self.model(img)
-                pred_flare, pred = self.refine_model(pred)
+                # _, pred = self.model(img)
+                pred = self.refine_model(img)
                
                 pred_blend = synthesis.blend_light_source(img.cuda(), pred.cuda())
                 times = time.time() - start_time

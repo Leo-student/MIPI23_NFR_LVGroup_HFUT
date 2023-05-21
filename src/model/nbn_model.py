@@ -14,7 +14,7 @@ def conv_down(in_chn, out_chn, bias=False):
 
 class UNetD(nn.Module):
 
-    def __init__(self, in_chn, wf=32, depth=5, relu_slope=0.2, subspace_dim=16):
+    def __init__(self, in_chn, wf=32, depth=3, relu_slope=0.2, subspace_dim=3):
         super(UNetD, self).__init__()
 
         self.depth = depth
@@ -121,21 +121,22 @@ class UNetUpBlock(nn.Module):
     def forward(self, x, bridge):
         up = self.up(x)
         bridge = self.skip_m(bridge)
-        out = F.concat([up, bridge], 1)
+        out = torch.cat([up, bridge], 1)
 
         if self.subnet:
             b_, c_, h_, w_ = bridge.shape
             sub = self.subnet(out)
             V_t = sub.reshape(b_, self.num_subspace, h_*w_)
-            V_t = V_t / (1e-6 + F.abs(V_t).sum(axis=2, keepdims=True))
-            V = V_t.transpose(0, 2, 1)
-            mat = F.matmul(V_t, V)
-            mat_inv = F.matinv(mat)
-            project_mat = F.matmul(mat_inv, V_t)
+            V_t = V_t / (1e-6 + torch.abs(V_t).sum(axis=2, keepdim=True))
+            V = V_t.transpose(1, 2)
+            mat = torch.matmul(V_t, V)
+            mat_inv = torch.inverse(mat)
+            project_mat = torch.matmul(mat_inv, V_t)
             bridge_ = bridge.reshape(b_, c_, h_*w_)
-            project_feature = F.matmul(project_mat, bridge_.transpose(0, 2, 1))
-            bridge = F.matmul(V, project_feature).transpose(0, 2, 1).reshape(b_, c_, h_, w_)
-            out = F.concat([up, bridge], 1)
+            project_feature = torch.matmul(project_mat, bridge_.transpose(1, 2))
+            bridge = torch.matmul(V, project_feature).transpose(1, 2).reshape(b_, c_, h_, w_)
+            out = torch.cat([up, bridge], 1)
+        
         out = self.conv_block(out)
         return out
 
