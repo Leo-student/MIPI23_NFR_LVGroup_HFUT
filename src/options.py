@@ -1,7 +1,7 @@
 import torch
 import argparse
 import yaml
-
+import os
 
 class TrainOptions():
     def __init__(self):
@@ -59,6 +59,8 @@ class TrainOptions():
         
         args = vars(opt)
         config.update(args)
+        dir_path = '{}/{}/'.format(opt.results_dir, opt.experiment)
+        os.makedirs(dir_path, exist_ok=True)
         
         with open('{}/{}/{}.yml'.format(opt.results_dir, opt.experiment,opt.experiment), 'w') as file:
             yaml.safe_dump(config, file)
