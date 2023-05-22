@@ -261,8 +261,8 @@ class NAFBlock_SFT(nn.Module):
         return (y + x * self.gamma, cond)
 class NAFNet(nn.Module):
 
-    def __init__(self, opt = opt, img_channel=3, width=16, middle_blk_num=23, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
-    # def __init__(self, img_channel=3, width=16, middle_blk_num=4, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
+    # def __init__(self, opt = opt, img_channel=3, width=16, middle_blk_num=23, enc_blk_nums=[1, 1, 2], dec_blk_nums=[1, 1, 1], cond_blk_num = [1, 1, 1] ):
+    def __init__(self, img_channel=3, width=12, middle_blk_num=18, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2], cond_blk_num = [1, 1, 1, 1] ):
         super().__init__()
 
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1,
