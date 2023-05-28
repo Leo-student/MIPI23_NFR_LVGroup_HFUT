@@ -9,6 +9,7 @@ from torch.autograd import Variable
 
 cuda = True if torch.cuda.is_available() else False
 
+
 class LossCont(nn.Module):
     def __init__(self):
         super(LossCont, self).__init__()
@@ -16,6 +17,26 @@ class LossCont(nn.Module):
         
     def forward(self, imgs, gts):
         return self.criterion(imgs, gts)
+
+# SmoothL1Loss
+class LossSmoothL1(nn.Module):
+    def __init__(self):
+        super(LossSmoothL1, self).__init__()
+        self.criterion = nn.SmoothL1Loss()
+        
+    def forward(self, imgs, gts):
+        return self.criterion(imgs, gts)
+# CharbonnierLoss
+class LossCharbonnier(nn.Module):
+    def __init__(self, epsilon=1e-6):
+        super(LossCharbonnier, self).__init__()
+        self.epsilon = epsilon
+
+    def forward(self, prediction, target):
+        error = prediction - target
+        loss = torch.sqrt(error * error + self.epsilon * self.epsilon)
+        loss = torch.mean(loss)
+        return loss
 
 class LossFreqReco(nn.Module):
     def __init__(self):
@@ -77,4 +98,16 @@ class LossPerceptual(nn.Module):
         # 计算 MSE 损失
         loss = self.criterion(fake_features, real_features)
 
+        return loss
+    
+
+class CharbonnierLoss(nn.Module):
+    def __init__(self, epsilon=1e-6):
+        super(CharbonnierLoss, self).__init__()
+        self.epsilon = epsilon
+
+    def forward(self, prediction, target):
+        error = prediction - target
+        loss = torch.sqrt(error * error + self.epsilon * self.epsilon)
+        loss = torch.mean(loss)
         return loss
