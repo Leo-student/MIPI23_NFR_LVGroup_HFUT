@@ -95,7 +95,8 @@ class TestOptions():
         self.parser = argparse.ArgumentParser()
         
         # ---------------------------------------- step 1/4 : parameters preparing... ----------------------------------------
-        self.parser.add_argument("--outputs_dir", type=str, default='../val_outputs', help="path of saving images")
+        self.parser.add_argument("--outputs_dir", type=str, default='../train_results', help="path of saving images")
+        
         self.parser.add_argument("--experiment", type=str, default='experiment', help="name of experiment")
         
         # ---------------------------------------- step 2/4 : data loading... ------------------------------------------------
@@ -118,8 +119,8 @@ class TestOptions():
     def show(self, opt):
         
         args = vars(opt)
-        log.info('************ Options ************')
+        print('************ Options ************')
         for k, v in sorted(args.items()):
-            log.info('%s: %s' % (str(k), str(v)))
-        log.info('************** End **************')
+            print('%s: %s' % (str(k), str(v)))
+        print('************** End **************')
         
