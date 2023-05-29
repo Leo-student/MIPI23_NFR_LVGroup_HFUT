@@ -15,6 +15,8 @@ class TrainOptions():
         self.parser.add_argument("--experiment", type=str, default='condition', help="name of experiment")
         
         # ---------------------------------------- step 2/6 : data loading... ------------------------------------------------
+        self.parser.add_argument("--dataset", type=str, default="275", choices=["24k", "2310", "275"], help="different dataset types")
+
         self.parser.add_argument("--data_source", type=str, default='../datasets/',  help="dataset root")
         self.parser.add_argument("--train_bs", type=int, default=8, help=" size of the training batches (train_bs per GPU)")
         self.parser.add_argument("--val_bs", type=int, default=4, help="size of the validating batches (val_bs per GPU)")
