@@ -17,7 +17,7 @@ from model.condition_model import NAFNet
 from model.nbn_model import UNetD
 from model.encoder_decoder import EncoderDecoder
 
-from losses import LossCont, LossFreqReco, LossGan, LossCycleGan, LossPerceptual
+from losses import LossCont, LossFreqReco, LossVGGInfoNCE
 from datasets import Flare_Image_Loader, SingleImgDataset
 
 from log import Log
@@ -73,7 +73,8 @@ class Trainer():
         
         self.criterion_cont = LossCont()
         self.criterion_fft = LossFreqReco()
-
+        self.criterion_cr = LossVGGInfoNCE()
+        
         self.optimizer = torch.optim.AdamW(self.refine_model.parameters(), lr=opt.lr)
 
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [50,100], 0.5)  
@@ -176,9 +177,11 @@ class Trainer():
                 loss_cont =    self.criterion_cont(preds, gts).cuda()
             
                 loss_fft =    self.criterion_cont(preds, gts).cuda()
-                
-                
                 masked_lf_scene = (1 - mask_lf) * imgs + mask_lf * preds
+                
+                loss_cr  =  self.criterion_cr( preds, gts, masked_lf_scene).cuda()
+                
+                
                 
                 
                 
@@ -191,7 +194,7 @@ class Trainer():
                 
                 
                 # loss =  loss_cont +  lambda_region * loss_region 
-                loss =  loss_cont + self.opt.lambda_fft * loss_fft + lambda_region * loss_region 
+                loss =  loss_cont + self.opt.lambda_fft * loss_fft + lambda_region * loss_region  + loss_cr 
                 
                 loss.backward()
                 self.optimizer.step()

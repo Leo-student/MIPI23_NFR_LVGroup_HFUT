@@ -47,7 +47,7 @@ class Trainer():
         
         
         # self.model = InpaintGenerator(opt).cuda()
-        self.model = NAFNet(opt).cuda()
+        self.model = NAFNet().cuda()
         print_para_num(self.model)
         
         
@@ -89,7 +89,12 @@ class Trainer():
         #load resume 
         if self.opt.resume:
             state = torch.load(self.models_dir + '/best.pth')
+            
+            # new_state_dict = {k.replace('module.', ''): v for k, v in state['model'].items()}
+            # new_state_dict = {'module.' + k: v for k, v in state['model'].items()}
             self.model.load_state_dict(state["model"])
+            # self.model.load_state_dict(new_state_dict)
+            
             
             self.optimizer.load_state_dict(state['optimizer'])
             # self.scheduler.load_state_dict(state['scheduler'])

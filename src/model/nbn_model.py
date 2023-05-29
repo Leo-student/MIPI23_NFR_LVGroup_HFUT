@@ -14,7 +14,8 @@ def conv_down(in_chn, out_chn, bias=False):
 
 class UNetD(nn.Module):
 
-    def __init__(self, in_chn, wf=32, depth=3, relu_slope=0.2, subspace_dim=3):
+    def __init__(self, in_chn, wf=32, depth=5, relu_slope=0.2, subspace_dim = 16):
+    # def __init__(self, in_chn, wf=32, depth=5, relu_slope=0.2, subspace_dim = 16):
         super(UNetD, self).__init__()
 
         self.depth = depth
