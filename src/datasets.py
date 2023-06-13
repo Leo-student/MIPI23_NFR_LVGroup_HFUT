@@ -23,6 +23,9 @@ from torch.distributions import Normal
 import torch
 import numpy as np
 import torch
+from options import TrainOptions
+
+opt = TrainOptions().parse(show = False)
 
 class RandomGammaCorrection(object):
 	def __init__(self, gamma = None):
@@ -56,10 +59,17 @@ class Flare_Image_Loader(data.Dataset):
 		self.data_source = data_source
 		self.ext = ['png','jpeg','jpg','bmp','tif']
 		self.data_list=[]
-		# [self.data_list.extend(glob.glob(data_source + '/Flickr24K/*.' + e)) for e in self.ext]
-		[self.data_list.extend(glob.glob(data_source + '/sony_2310/*.' + e)) for e in self.ext]
-		[self.data_list.extend(glob.glob(data_source + '/sony_275/*.' + e)) for e in self.ext]
-		# self.data_list = glob.glob(data_source + '/Flickr24K/*.*')
+		self.opt = TrainOptions().parse(show = False)
+		if self.opt.dataset == '24k' :
+			[self.data_list.extend(glob.glob(data_source + '/Flickr24K/*.' + e)) for e in self.ext]
+		elif self.opt.dataset == '2310':
+
+			[self.data_list.extend(glob.glob(data_source + '/sony_2310/*.' + e)) for e in self.ext]
+		elif self.opt.dataset == '275':
+			[self.data_list.extend(glob.glob(data_source + '/sony_275/*.' + e)) for e in self.ext]
+		else :
+			raise ValueError("Invalid dataset option. Please choose from '24k', '2310', '275'.")
+
 		self.flare_dict={}
 		self.flare_list=[]
 		self.flare_name_list=[]
