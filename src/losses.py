@@ -99,7 +99,6 @@ class LossPerceptual(nn.Module):
         loss = self.criterion(fake_features, real_features)
 
         return loss
-<<<<<<< HEAD
     
 
 class CharbonnierLoss(nn.Module):
@@ -112,7 +111,6 @@ class CharbonnierLoss(nn.Module):
         loss = torch.sqrt(error * error + self.epsilon * self.epsilon)
         loss = torch.mean(loss)
         return loss
-=======
 
 
 class Vgg19(torch.nn.Module):
@@ -179,4 +177,3 @@ class LossVGGInfoNCE(nn.Module):
             loss += self.weights[i] * contrastive
         return loss
             
->>>>>>> 62bf39675d0676cea0e3b53a446f0a8c35701d6d
