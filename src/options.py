@@ -18,7 +18,7 @@ class TrainOptions():
         self.parser.add_argument("--dataset", type=str, default="275", choices=["24k", "2310", "275"], help="different dataset types")
 
         self.parser.add_argument("--data_source", type=str, default='../datasets/',  help="dataset root")
-        self.parser.add_argument("--train_bs", type=int, default=8, help=" size of the training batches (train_bs per GPU)")
+        self.parser.add_argument("--train_bs", type=int, default=4, help=" size of the training batches (train_bs per GPU)")
         self.parser.add_argument("--val_bs", type=int, default=4, help="size of the validating batches (val_bs per GPU)")
         self.parser.add_argument("--crop", type=int, default=512, help="image size after cropping")
         self.parser.add_argument("--num_workers", type=int, default=12, help="number of cpu threads to use during batch generation")
@@ -26,9 +26,9 @@ class TrainOptions():
         # ---------------------------------------- step 3/6 : model defining... ------------------------------------------------
         self.parser.add_argument("--data_parallel", action='store_true', help="if specified, training by data paralleling")
         self.parser.add_argument("--pretrained", type=str, default=None, help="pretrained state")
-        self.parser.add_argument("--num_res", type=int, default=8, help="number of resblocks after each convolution")
+        self.parser.add_argument("--num_aot", type=int, default=1, help="number of aotblock ")
         self.parser.add_argument("--base_channel", type=int, default=32, help="number of output channels for first convolution")
-        self.parser.add_argument("--rates", type=str, default='1248', help="number of AOT blocks")
+        self.parser.add_argument("--rates", type=str, default='1+2', help="number of AOT blocks")
         
         # ---------------------------------------- step 4/6 : requisites defining... ------------------------------------------------
         self.parser.add_argument("--lr", type=float, default=0.0001, help="learning rate")
@@ -52,6 +52,7 @@ class TrainOptions():
         
     def parse(self, show=True):
         opt = self.parser.parse_args()
+        opt.rates = list(map(int, list(opt.rates.split('+'))))
         config = {}
         # try:
         #     with open('config.yml', 'r') as file:
