@@ -31,7 +31,7 @@ class ConvGuidedFilter(nn.Module):
         _, _, h_hrx, w_hrx = x_hr.size()
 
         N = self.box_filter(x_lr.data.new().resize_((1, c_lrx, h_lrx, w_lrx)).fill_(1.0))
-        # #　print(N)
+        # # print(N)
         ## mean_x
         mean_x = self.box_filter(x_lr)/N
         ## mean_y
@@ -40,7 +40,7 @@ class ConvGuidedFilter(nn.Module):
         cov_xy = self.box_filter(x_lr * y_lr)/N - mean_x * mean_y
         ## var_x
         var_x  = self.box_filter(x_lr * x_lr)/N - mean_x * mean_x
-        #　print(cov_xy.shape , var_x.shape)
+        # print(cov_xy.shape , var_x.shape)
         ## A
         A = self.conv_a(torch.cat([cov_xy, var_x], dim=1))
         ## b
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     import numpy as np
     a = UNetD(3)
 
-    print(a)
+    # print(a)
     input_size = (4, 3, 512, 512)
     input_data = torch.randn(input_size)
     torchinfo.summary(a, input_size, verbose=2)
