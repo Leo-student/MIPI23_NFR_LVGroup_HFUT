@@ -14,7 +14,7 @@ from utils import *
 import synthesis
 from options import TrainOptions
 from model.condition_model import NAFNet
-from model.nbn_model import UNetD
+from model.nbn_model_guide import UNetD
 from model.encoder_decoder import EncoderDecoder
 
 from losses import LossCont, LossFreqReco, LossVGGInfoNCE
@@ -77,7 +77,7 @@ class Trainer():
         
         self.optimizer = torch.optim.AdamW(self.refine_model.parameters(), lr=opt.lr)
 
-        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [50,100], 0.5)  
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1, gamma=0.99991)  
         self.start_epoch = 1
 
         if self.opt.resume:
@@ -119,7 +119,7 @@ class Trainer():
             # self.refine_model.load_state_dict(state["model"])
             
             
-            # self.scheduler.load_state_dict(state['scheduler'])
+            self.scheduler.load_state_dict(state['scheduler'])
 
             self.start_epoch = state['epoch'] + 1
         
@@ -155,7 +155,7 @@ class Trainer():
         iter_timer = Timer()
         # Calculate output of image discriminator (PatchGAN)
 
-        with tqdm(total= len(self.train_dataloader), colour = "MAGENTA", leave=False, ncols=120 ) as pbar:
+        with tqdm(total= len(self.train_dataloader), colour = "WHITE", leave=False, ncols=120 ) as pbar:
             for i, (gts, flares, imgs, _) in enumerate(self.train_dataloader):
                 pbar.set_description('Training: Epoch[{:0>3}/{:0>3}] Iteration[{:0>3}/{:0>3}] '.format(epoch, self.opt.n_epochs, i + 1, max_iter))
             # for i, (gts, flares, imgs, _) in enumerate(train_dataloader):
@@ -176,10 +176,10 @@ class Trainer():
                 # preds_flare, preds = self.refine_model(preds)
                 loss_cont =    self.criterion_cont(preds, gts).cuda()
             
-                loss_fft =    self.criterion_cont(preds, gts).cuda()
+                # loss_fft =    self.criterion_cont(preds, gts).cuda()
                 masked_lf_scene = (1 - mask_lf) * imgs + mask_lf * preds
                 
-                loss_cr  =  self.criterion_cr( preds, gts, masked_lf_scene).cuda()
+                # loss_cr  =  self.criterion_cr( preds, gts, masked_lf_scene).cuda()
                 
                 
                 
@@ -191,32 +191,34 @@ class Trainer():
                 lambda_region =   (512 * 512 * cur_batch)  / (torch.sum(mask_lf).cpu().numpy() + 1e-9) 
                 # print(lambda_region, torch.sum(mask_gt), torch.sum(mask_lf), torch.sum(light_source) );print(" ")
                 
-                
-                
-                # loss =  loss_cont +  lambda_region * loss_region 
-                loss =  loss_cont + self.opt.lambda_fft * loss_fft + lambda_region * loss_region  + loss_cr 
+                diff = 0 
+                loss_region = lambda_region * loss_region  + diff 
+                loss =  loss_cont +   loss_region 
+                # loss =  loss_cont + self.opt.lambda_fft * loss_fft + lambda_region * loss_region  
                 
                 loss.backward()
                 self.optimizer.step()
 
 
                 iter_cont_meter.update(loss_cont.item()*cur_batch, cur_batch)
-                iter_fft_meter.update(loss_fft.item()*cur_batch, cur_batch)
+                # iter_fft_meter.update(loss_fft.item()*cur_batch, cur_batch)
 
 
                 # if lambda_region >= 1.0:
                     # save_image(torch.cat((imgs,preds.detach(),preds_flare.detach(),flares,gts),0), train_images_dir + '/epoch_{:0>4}_iter_{:0>4}.png'.format(epoch, i+1), nrow=opt.train_bs, normalize=True, scale_each=True)
-
-                if self.opt.tensorboard and ((i+1) % self.opt.print_gap == 0):
-                    self.writer.add_scalar('Loss_cont', iter_cont_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
-                    self.writer.add_scalar('Loss_fft', iter_fft_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
+                if  ((i+1) % self.opt.print_gap == 0):
+                    self.log.info('{}: {:.3f} ____ {}: {:.3f} ___ {} : {:.6f}'.format('loss_cont', loss_cont.item(), 'loss_region', loss_region.item(), 'lr',self.scheduler.get_last_lr()[0]))
+                # if self.opt.tensorboard and ((i+1) % self.opt.print_gap == 0):
+                    # self.writer.add_scalar('Loss_cont', iter_cont_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
+                    # self.writer.add_scalar('Loss_fft', iter_fft_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
                 
                 pbar.update(1)
         if self.opt.tensorboard: 
             self.writer.add_scalar('lr', self.scheduler.get_last_lr()[0], epoch)
-        
-        torch.save({'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
+            
         self.scheduler.step()
+        torch.save({'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
+        
         
         
         

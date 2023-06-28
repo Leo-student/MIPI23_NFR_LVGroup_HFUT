@@ -31,7 +31,7 @@ class ConvGuidedFilter(nn.Module):
         _, _, h_hrx, w_hrx = x_hr.size()
 
         N = self.box_filter(x_lr.data.new().resize_((1, c_lrx, h_lrx, w_lrx)).fill_(1.0))
-        # print(N)
+        # #　print(N)
         ## mean_x
         mean_x = self.box_filter(x_lr)/N
         ## mean_y
@@ -40,7 +40,7 @@ class ConvGuidedFilter(nn.Module):
         cov_xy = self.box_filter(x_lr * y_lr)/N - mean_x * mean_y
         ## var_x
         var_x  = self.box_filter(x_lr * x_lr)/N - mean_x * mean_x
-        print(cov_xy.shape , var_x.shape)
+        #　print(cov_xy.shape , var_x.shape)
         ## A
         A = self.conv_a(torch.cat([cov_xy, var_x], dim=1))
         ## b
@@ -54,7 +54,7 @@ class ConvGuidedFilter(nn.Module):
 
 class UNetD(nn.Module):
 
-    def __init__(self, in_chn, wf=32, depth=4, relu_slope=0.2, subspace_dim = 16):
+    def __init__(self, in_chn, wf=32, depth=5, relu_slope=0.2, subspace_dim = 16):
     # def __init__(self, in_chn, wf=32, depth=5, relu_slope=0.2, subspace_dim = 16):
         super(UNetD, self).__init__()
 
@@ -88,7 +88,7 @@ class UNetD(nn.Module):
         blocks = []
         
         for i, down in enumerate(self.down_path):
-            print(f'encodoer  {x1.shape}')
+            #　print(f'encodoer  {x1.shape}')
             if (i+1) < self.depth:
                 x_hr = x1
                 x1, x1_up = down(x1)
@@ -97,10 +97,10 @@ class UNetD(nn.Module):
                 
             else:
                 x1 = down(x1)
-        print(f'bottleneck {x1.shape}')
+        #　print(f'bottleneck {x1.shape}')
         # x1 = self.ema(x1)
         for i, up in enumerate(self.up_path):
-            print(f'decoder {x1.shape}, {blocks[-i-1].shape}')
+            #　print(f'decoder {x1.shape}, {blocks[-i-1].shape}')
             # bridge :    blocks[-i-1] : INH 
             #        :    x1           : INL
             x1 = up( x1, blocks[-i-1])
@@ -115,10 +115,10 @@ class UNetD(nn.Module):
         gain = nn.init.calculate_gain('leaky_relu', 0.20)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                print("weight")
+                #　print("weight")
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
-                    print("bias")
+                    #　print("bias")
                     nn.init.zeros_(m.bias)
 
 
@@ -181,7 +181,7 @@ class UNetUpBlock(nn.Module):
         self.conv_block = UNetConvBlock(in_size, out_size, False, relu_slope)
         self.conv_equal = UNetConvBlock(in_size, in_size, False, relu_slope)
         self.num_subspace = subspace_dim
-        print(self.num_subspace, subnet_repeat_num)
+        #　print(self.num_subspace, subnet_repeat_num)
         
         self.subnet = Subspace(in_size, self.num_subspace)
         self.skip_m = skip_blocks(out_size, out_size, subnet_repeat_num)
@@ -196,7 +196,7 @@ class UNetUpBlock(nn.Module):
         
         
         bridge = self.skip_m(bridge)
-        print(x_lr.shape, y_lr.shape, bridge.shape)
+        #　print(x_lr.shape, y_lr.shape, bridge.shape)
         y_hr = self.gf(x_lr, y_lr, bridge)
         
         out = torch.cat([up, y_hr], 1)
@@ -207,11 +207,13 @@ class UNetUpBlock(nn.Module):
             V_t = sub.reshape(b_, self.num_subspace, h_*w_)
             V_t = V_t / (1e-6 + torch.abs(V_t).sum(axis=2, keepdim=True))
             V = V_t.transpose(1, 2)
-            mat = torch.matmul(V_t, V)
-            mat_inv = torch.inverse(mat)
-            project_mat = torch.matmul(mat_inv, V_t)
+            # mat = torch.matmul(V_t, V)
+            # mat_inv = torch.inverse(mat)
+            # project_mat = torch.matmul(mat_inv, V_t)
+
             bridge_ = bridge.reshape(b_, c_, h_*w_)
-            project_feature = torch.matmul(project_mat, bridge_.transpose(1, 2))
+            project_feature = torch.matmul(V_t, bridge_.transpose(1, 2))
+            # project_feature = torch.matmul(project_mat, bridge_.transpose(1, 2))
             bridge = torch.matmul(V, project_feature).transpose(1, 2).reshape(b_, c_, h_, w_)
             out = torch.cat([up, bridge], 1)
         
@@ -267,7 +269,7 @@ if __name__ == "__main__":
     print(a)
     input_size = (4, 3, 512, 512)
     input_data = torch.randn(input_size)
-    torchinfo.summary(a, input_size)
+    torchinfo.summary(a, input_size, verbose=2)
     im = torch.tensor(np.random.randn(4, 3, 512, 512).astype(np.float32))
-    # print(a(im))
+    # #　print(a(im))
 
