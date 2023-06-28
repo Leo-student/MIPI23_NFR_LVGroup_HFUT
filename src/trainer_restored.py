@@ -207,7 +207,7 @@ class Trainer():
                 # if lambda_region >= 1.0:
                     # save_image(torch.cat((imgs,preds.detach(),preds_flare.detach(),flares,gts),0), train_images_dir + '/epoch_{:0>4}_iter_{:0>4}.png'.format(epoch, i+1), nrow=opt.train_bs, normalize=True, scale_each=True)
                 if  ((i+1) % self.opt.print_gap == 0):
-                    self.log.info('{}: {:.3f} ____ {}: {:.3f} ___ {} : {:.6f}'.format('loss_cont', loss_cont.item(), 'loss_region', loss_region.item(), 'lr',self.scheduler.get_last_lr()[0]))
+                    self.log.info('{}: {:.3f} ____ {}: {:.3f} '.format('loss_cont', loss_cont.item(), 'loss_region', loss_region.item()))
                 # if self.opt.tensorboard and ((i+1) % self.opt.print_gap == 0):
                     # self.writer.add_scalar('Loss_cont', iter_cont_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
                     # self.writer.add_scalar('Loss_fft', iter_fft_meter.average(auto_reset=True), i+1 + (epoch - 1) * max_iter)
@@ -215,7 +215,7 @@ class Trainer():
                 pbar.update(1)
         if self.opt.tensorboard: 
             self.writer.add_scalar('lr', self.scheduler.get_last_lr()[0], epoch)
-            
+        self.log.info('{} : {:.6e}'.format('lr',self.scheduler.get_last_lr()[0]))   
         self.scheduler.step()
         torch.save({'model': self.refine_model.state_dict(), 'optimizer': self.optimizer.state_dict(), 'scheduler': self.scheduler.state_dict(), 'epoch': epoch}, self.models_dir + '/latest.pth')
         
